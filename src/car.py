@@ -27,6 +27,8 @@ class Car:
         self.cfg = cfg
         self.distance = 0.0
         self.collides = False
+        self.lastX = 0
+        self.lastY = 0
 
     def setCarAhead(self, car):
         self.carAhead = car
@@ -75,8 +77,8 @@ class Car:
     
     def update(self, dt, cars, enemies):
         self.sprite.update(dt)
-        lastX = self.position[0]
-        lastY = self.position[1]
+        self.lastX = self.position[0]
+        self.lastY = self.position[1]
         if self.objectAhead:                    
             a = self.__V__(self.getDistance(self.objectAhead)) * self.maxVelocity - self.velocity
             if a < 0:
@@ -91,11 +93,11 @@ class Car:
             aabb = self.aabb()
             for c in cars:
                 if c.direction in const.opposite[self.direction] and self.aabb_collision(aabb, c.aabb()):
-                    self.setPosition(lastX, lastY)
+                    self.setPosition(self.lastX, self.lastY)
                     return      
             for e in enemies:
                 if self.aabb_collision(aabb, e.aabb()):
-                    self.setPosition(lastX, lastY)
+                    self.setPosition(self.lastX, self.lastY)
                     return                        
 
     def aabb_collision(self, (minx1, miny1, maxx1, maxy1), (minx2, miny2, maxx2, maxy2)):
@@ -103,8 +105,8 @@ class Car:
         ycollision = (miny1 <= miny2 and miny2 <= maxy1) or (miny2 <= miny1 and miny1 <= maxy2)
         return xcollision and ycollision
             
-    def display(self, screen):
-        self.sprite.display(screen, self.getPosition())            
+    def display(self, screen): 
+        return self.sprite.display(screen, self.getPosition())            
             
     def start(self):
         self.objectAhead = self.carAhead

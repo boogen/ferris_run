@@ -175,7 +175,7 @@ class Resources:
         if self.cfg.music:
             pygame.mixer.music.stop()
 
-    def font_render(self, name, size, text, color):
+    def font_render(self, name, size, text, color):        
         return self.font[name][size].render(text, 1, color)
 
     ## load files
@@ -192,7 +192,8 @@ class Resources:
             self.font[name]
         except:
             self.font[name] = {}
-        font = self.font[name][size] = pygame.font.Font(self.cfg.font_path(name + ".ttf"), size)
+        font = self.font[name][size] = pygame.font.Font(None, size)
+        #font = self.font[name][size] = pygame.font.Font(self.cfg.font_path(name + ".ttf"), size)
         return font
 
     def load_animation_file(self, name):
@@ -252,6 +253,7 @@ class Resources:
         return lambda image: pygame.transform.flip(image, True, False)
     
     def __load_highscores(self):
+        return
         f = open(self.cfg.highscores_path, 'r')     
         content = f.read()     
         entries = content.split(self.cfg.highscore_entry_delimiter)

@@ -23,6 +23,9 @@ class GameState:
     def process_event(self, event):
         pass
 
+    def cleanup(self, screen):
+        pass
+    
     def display(self, screen):
         pass
 
@@ -91,12 +94,17 @@ class GameFsm:
                 else:
                     self.set_state(self.current_state.next_state())
                 continue
+            
+            cleanup_list = self.current_state.cleanup(self.video_buffer)
             self.current_state.update(dt)
-
-            self.current_state.display(self.screen)
-            if (self.cfg.resolution != self.cfg.screen_resolution):
-                pygame.transform.scale(self.screen, self.cfg.screen_resolution, self.video_buffer)
+            display_list = self.current_state.display(self.video_buffer)
+            
+      #      if (self.cfg.resolution != self.cfg.screen_resolution):
+      #          pygame.transform.scale(self.screen, self.cfg.screen_resolution, self.video_buffer)
+      #      else:
+      #          self.video_buffer.blit(self.screen, (0,0))
+            if display_list and cleanup_list:
+                pygame.display.update(cleanup_list + display_list)
             else:
-                self.video_buffer.blit(self.screen, (0,0))
-            pygame.display.flip()
+                pygame.display.flip()
         

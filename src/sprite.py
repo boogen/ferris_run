@@ -14,6 +14,7 @@ class Sprite:
         self.draw_origin = draw_origin
         self.frames_count = len(self.res.animation[name])
         self.reset_animation()
+        self.frame_changed = True
 
     def reset_animation(self):
         self.current_frame_index = 0
@@ -26,20 +27,28 @@ class Sprite:
         if (self.next_frame_change_time < 0):
             self.next_frame_change_time += self.delay
             self.current_frame_index += 1
-            self.current_frame_index %= self.frames_count
+            if self.frames_count > 1:
+                self.frame_changed = True
+            if self.frames_count:
+                self.current_frame_index %= self.frames_count
 
     def current_frame(self):
         return self.res.animation[self.name][self.current_frame_index]
 
     def display(self, screen, position):
         img = self.current_frame()
+        self.frame_changed = False
         if self.draw_origin == ORIGIN_TOP_LEFT:
             screen.blit(img, position)
+            w,h = img.get_size()
+            return (position[0], position[1], w, h)
         elif self.draw_origin == ORIGIN_CENTER:
             w,h = img.get_size()
             x,y = position
             display_position = (x-w/2, y-h/2)
             screen.blit(img, display_position)
+            return (x-w/2, y-h/2, w, h)
+            
 
     def getPosition(self, position):
         img = self.current_frame()

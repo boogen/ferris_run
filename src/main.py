@@ -188,7 +188,7 @@ class Ferris:
                 return;
 
     def display(self, screen):
-        self.sprite[self.direction].display(screen, self.position)
+        return self.sprite[self.direction].display(screen, self.position)
 
     def aabb(self):
         return self.sprite[self.direction].aabb(self.position)
@@ -255,7 +255,7 @@ class Director:
                 break
 
     def display(self, screen):
-        self.sprite[self.direction].display(screen, self.position)
+        return self.sprite[self.direction].display(screen, self.position)
 
     def aabb(self):
         return self.sprite[self.direction].aabb(self.position)
@@ -310,7 +310,7 @@ class Sister:
                 break
 
     def display(self, screen):
-        self.sprite[self.direction].display(screen, self.position)
+        return self.sprite[self.direction].display(screen, self.position)
 
     def aabb(self):
         return self.sprite[self.direction].aabb(self.position)
@@ -349,7 +349,7 @@ class Register:
         self.sprite.update(dt)
 
     def display(self, screen):
-        self.sprite.display(screen, self.position)
+        return self.sprite.display(screen, self.position)
 
     def aabb(self):
         return self.sprite.aabb(self.position)
@@ -480,12 +480,14 @@ class EnterHighscores(Highscores):
 
 class FerrisRunGame(GameState):
     def __init__(self, cfg, res, fsm):
+        self.background_displayed = False
         self.cfg = cfg
         self.res = res
         self.fsm = fsm
 
         self.__is_finished = False
         self.level_num = None # set in set_level called from init
+        self.level_num_changed = True
         self.register = Register(cfg, res, (350, 350))
 
         self.background = Sprite("background", self.res, None, ORIGIN_TOP_LEFT)
@@ -563,6 +565,10 @@ class FerrisRunGame(GameState):
         self.cop_sprites = pygame.sprite.Group()
 
         self.inited = False
+        self.display_list = []
+        self.cleanup_list = []
+        self.resumed = True        
+        self.hud_changed = True
 
     def init(self, screen):
         if self.inited:
@@ -589,6 +595,7 @@ class FerrisRunGame(GameState):
 
     def set_level(self, level_num):
         self.level_num = level_num
+        self.hud_changed = True
         self.reset_level()
      #   self.res.music_play("level_background")
         self.res.sounds_play("level_start")
@@ -640,6 +647,7 @@ class FerrisRunGame(GameState):
         self.blood_positions.append(self.ferris.position)
         self.res.sounds_play("die")
         self.deaths += 1
+        self.hud_changed = True
         self.reset_level()
 
     def update(self, dt):
@@ -696,7 +704,7 @@ class FerrisRunGame(GameState):
            self.register = Register(self.cfg, self.res)
 
            self.points += 100 * (self.cfg.rich_mode_multiplier if self.rich_mode else 1)
-
+           self.hud_changed = True
            self.registers_left -= 1
            if self.registers_left <= 0:
                self.go_to_next_level()
@@ -773,6 +781,7 @@ class FerrisRunGame(GameState):
         self.res.sounds_play("collect")
         self.register = Register(self.cfg, self.res)
         self.points += 100 * (self.cfg.rich_mode_multiplier if self.rich_mode else 1)
+        self.hud_changed = True
         self.registers_left -= 1
         if self.registers_left <= 0:
             self.go_to_next_level()
@@ -856,57 +865,76 @@ class FerrisRunGame(GameState):
     def add_upgrade(self, upgrade):
         self.bonuses.append(upgrade)
 
+    def add_rect(self, r):
+        self.cleanup_list.append(r)
+        self.display_list.append(r)
+
+    def cleanup(self, screen):
+        for r in self.cleanup_list:
+            screen.blit(self.background.current_frame(), (r[0], r[1]), r)
+        return self.cleanup_list     
+
     def display(self, screen):
-        self.background.display(screen, (0,0))
+        self.display_list = []
+        self.cleanup_list = []
+        if self.background.frame_changed or (not self.stopped and not self.resumed):          
+            self.display_list.append(self.background.display(screen, (0,0)))       
+            self.resumed = True                 
         self.allsprites.draw(screen)
         for blood_position in self.blood_positions:
-            self.blood_sprite.display(screen, blood_position)
+            self.add_rect(self.blood_sprite.display(screen, blood_position))
+            
 
         for car in self.cars:
-            car.display(screen)
+            self.add_rect(car.display(screen))        
 
-        self.register.display(screen)
-        self.ferris.display(screen)
-        self.director.display(screen)
+        self.add_rect(self.register.display(screen))        
+        self.add_rect(self.ferris.display(screen)) 
+        self.add_rect(self.director.display(screen))
         if self.level_num >= 2:
-            self.sister.display(screen)
+            self.add_rect(self.sister.display(screen))
 
         board_size = self.cfg.board_size[0]
-        self.hud.display(screen, (board_size,0))
-
-        # hud
-        menu_x = self.cfg.board_size[0] + 10
-        self.display_key_value(screen, (menu_x, 20), "LEVEL", self.level_num)
-        self.display_key_value(screen, (menu_x, 70), "POINTS", self.points)
-        self.display_key_value(screen, (menu_x, 130), "DEATHS", self.deaths)
-        self.display_key_value(screen, (menu_x, 180), "REGISTERS", self.registers_left)
-
-        # bonuses
-        bonus_y = 300
-        if self.bonuses != []:
-            self.display_key_value(screen, (menu_x, bonus_y-40), "BONUSES")
-        for bonus in self.bonuses:
-            if bonus.active:
-                 pygame.draw.rect(screen, color.by_name["blue"], (self.cfg.board_size[0]+10-3, bonus_y-1, 46, 43), 3)
-            if bonus.finished:
-                bonus.sprite_dark.display(screen, (self.cfg.board_size[0]+10, bonus_y))
-            else:
-                bonus.sprite.display(screen, (self.cfg.board_size[0]+10, bonus_y))
-
-            if bonus.type == "timer":
-                text_time_left = self.res.font_render("LESSERCO", 36, str(bonus.time_left)+"s", color.by_name["red"])
-            elif bonus.type == "counter":
-                text_time_left = self.res.font_render("LESSERCO", 36, " x " + str(bonus.count_left), color.by_name["red"])
-            screen.blit(text_time_left, (menu_x + 60, bonus_y))
-
-            bonus_y += 50
+        
+        
+        if self.hud_changed:
+            self.hud_changed = False
+            self.display_list.append(self.hud.display(screen, (board_size,0)))
+            # hud
+            menu_x = self.cfg.board_size[0] + 10        
+            self.display_key_value(screen, (menu_x, 20), "LEVEL", self.level_num)
+            self.display_key_value(screen, (menu_x, 70), "POINTS", self.points)
+            self.display_key_value(screen, (menu_x, 130), "DEATHS", self.deaths)
+            self.display_key_value(screen, (menu_x, 180), "REGISTERS", self.registers_left)
+    
+            # bonuses
+            bonus_y = 300
+            if self.bonuses != []:
+                self.display_key_value(screen, (menu_x, bonus_y-40), "BONUSES")
+            for bonus in self.bonuses:
+                if bonus.active:
+                     pygame.draw.rect(screen, color.by_name["blue"], (self.cfg.board_size[0]+10-3, bonus_y-1, 46, 43), 3)
+                if bonus.finished:
+                    bonus.sprite_dark.display(screen, (self.cfg.board_size[0]+10, bonus_y))
+                else:
+                    bonus.sprite.display(screen, (self.cfg.board_size[0]+10, bonus_y))
+    
+                if bonus.type == "timer":
+                    text_time_left = self.res.font_render("LESSERCO", 36, str(bonus.time_left)+"s", color.by_name["red"])
+                elif bonus.type == "counter":
+                    text_time_left = self.res.font_render("LESSERCO", 36, " x " + str(bonus.count_left), color.by_name["red"])
+                screen.blit(text_time_left, (menu_x + 60, bonus_y))
+    
+                bonus_y += 50
 
         self.cop_sprites.update();
         self.cop_sprites.draw(screen);
 
         # pause menu
         if self.stopped:
-            self.pause_sprite[self.level_num].display(screen, (0,0))
+            self.display_list.append(self.pause_sprite[self.level_num].display(screen, (0,0)))
+            self.resumed = False
+            
 
         if self.teleporting and not self.stopped:
             pygame.mouse.set_visible(True)
@@ -919,13 +947,16 @@ class FerrisRunGame(GameState):
 
         if self.cfg.print_fps:
             self.display_key_value(screen, (0,0), "DT / FPS",  str(self.dt) + " / " + str(int(1.0/self.dt)))
+            self.cleanup_list.append((130,0,130,25))
 
         if self.cfg.cheat_mode:
             self.display_key_value(screen, (300, 550), "!!! CHEATER !!!", "")
+        
+        return self.display_list
 
     def display_key_value(self, screen, position, key, value = ""):
         label = self.res.font_render("LESSERCO", 36, str(key), color.by_name["red"])
-        screen.blit(label, (position[0], position[1]))
+        screen.blit(label, (position[0], position[1]))            
         value = self.res.font_render("LESSERCO", 36, str(value), color.by_name["red"])
         screen.blit(value, (position[0]+130, position[1]))
 
